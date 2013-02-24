@@ -514,6 +514,103 @@ boolean Adafruit_NFCShield_I2C::readPassiveTargetID(uint8_t cardbaudrate, uint8_
   return 1;
 }
 
+/**************************************************************************/
+/*! 
+    Waits for an ISO14443A target to enter the field
+    
+    @param  cardBaudRate  Baud rate of the card
+    @param  uid           Pointer to the array that will be populated
+                          with the card's UID (up to 7 bytes)
+    @param  uidLength     Pointer to the variable that will hold the
+                          length of the card's UID.
+    @param  atqa          Pointer to the variable that will hold the
+                          Answer To Request of Type A (ATQA or SENS_SEL).
+    @param  sak           Pointer to the variable that will hold the
+                          Select Acknowledge (SAK or SEL_RES).
+    
+    @returns 1 if everything executed properly, 0 for an error
+*/
+/**************************************************************************/
+boolean Adafruit_NFCShield_I2C::readPassiveTargetID(uint8_t cardbaudrate, uint8_t * uid, uint8_t * uidLength, uint16_t * atqa, uint8_t * sak) {
+  pn532_packetbuffer[0] = PN532_COMMAND_INLISTPASSIVETARGET;
+  pn532_packetbuffer[1] = 1;  // max 1 cards at once (we can set this to 2 later)
+  pn532_packetbuffer[2] = cardbaudrate;
+  
+  if (! sendCommandCheckAck(pn532_packetbuffer, 3))
+  {
+    #ifdef PN532DEBUG
+  Serial.println("No card(s) read");
+  #endif
+    return 0x0;  // no cards read
+  }
+  
+  // Wait for a card to enter the field
+  uint8_t status = PN532_I2C_BUSY;
+  #ifdef PN532DEBUG
+  Serial.println("Waiting for IRQ (indicates card presence)");
+  #endif
+  while (wirereadstatus() != PN532_I2C_READY)
+  {
+  delay(10);
+  }
+
+  #ifdef PN532DEBUG
+  Serial.println("Found a card"); 
+  #endif
+ 
+  // read data packet
+  wirereaddata(pn532_packetbuffer, 20);
+  
+  // check some basic stuff
+  /* ISO14443A card response should be in the following format:
+  
+    byte            Description
+    -------------   ------------------------------------------
+    b0..6           Frame header and preamble
+    b7              Tags Found
+    b8              Tag Number (only one used in this example)
+    b9..10          SENS_RES
+    b11             SEL_RES
+    b12             NFCID Length
+    b13..NFCIDLen   NFCID                                      */
+  
+#ifdef MIFAREDEBUG
+    Serial.print("Found "); Serial.print(pn532_packetbuffer[7], DEC); Serial.println(" tags");
+#endif
+  if (pn532_packetbuffer[7] != 1) 
+    return 0;
+  
+
+  uint16_t sens_res = pn532_packetbuffer[9];
+  sens_res <<= 8;
+  sens_res |= pn532_packetbuffer[10];
+  *atqa = sens_res;
+  *sak = pn532_packetbuffer[11];
+
+#ifdef MIFAREDEBUG
+    Serial.print("ATQA: 0x");  Serial.println(sens_res, HEX); 
+    Serial.print("SAK: 0x");  Serial.println(pn532_packetbuffer[11], HEX);
+#endif
+  
+  /* Card appears to be Mifare Classic */
+  *uidLength = pn532_packetbuffer[12];
+#ifdef MIFAREDEBUG
+    Serial.print("UID:"); 
+#endif
+  for (uint8_t i=0; i < pn532_packetbuffer[12]; i++) 
+  {
+    uid[i] = pn532_packetbuffer[13+i];
+#ifdef MIFAREDEBUG
+      Serial.print(" 0x");Serial.print(uid[i], HEX); 
+#endif
+  }
+#ifdef MIFAREDEBUG
+    Serial.println();
+#endif
+
+  return 1;
+}
+
 
 /***** Mifare Classic Functions ******/
 

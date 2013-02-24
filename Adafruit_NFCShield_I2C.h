@@ -29,6 +29,8 @@
 #ifndef Adafruit_NFCShield_I2C_h
 #define Adafruit_NFCShield_I2C_h
 
+#define MIFAREDEBUG
+
 #if ARDUINO >= 100
  #include "Arduino.h"
 #else
@@ -170,6 +172,7 @@ class Adafruit_NFCShield_I2C{
   // ISO14443A functions
   boolean inListPassiveTarget();
   boolean readPassiveTargetID(uint8_t cardbaudrate, uint8_t * uid, uint8_t * uidLength);
+  boolean readPassiveTargetID(uint8_t cardbaudrate, uint8_t * uid, uint8_t * uidLength, uint16_t * atqa, uint8_t * sak);
   boolean inDataExchange(uint8_t * send, uint8_t sendLength, uint8_t * response, uint8_t * responseLength);
   
   // Mifare Classic functions
